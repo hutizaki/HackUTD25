@@ -118,7 +118,7 @@ export class AgentService {
           openAsCursorGithubApp: false,
           skipReviewerRequest: false,
         },
-        model: agent.model,
+        model: agent.llmModel,
       };
 
       // Launch Cursor agent
@@ -385,7 +385,7 @@ export class AgentService {
           enabled: true,
           onboardingDocRef: '.ai/agents/product-manager.md',
           contextPacks: ['docs/roadmap.md', 'docs/plan.md'],
-          model: 'claude-4-sonnet',
+          llmModel: 'claude-4-sonnet',
         },
         // Developer Agent
         {
@@ -416,7 +416,7 @@ export class AgentService {
           enabled: true,
           onboardingDocRef: '.ai/agents/backend-manager.md',
           contextPacks: ['api/src/', 'docs/roadmap.md'],
-          model: 'claude-4-sonnet',
+          llmModel: 'claude-4-sonnet',
         },
         // QA Agent
         {
@@ -445,7 +445,7 @@ export class AgentService {
           enabled: true,
           onboardingDocRef: '.ai/agents/qa.md',
           contextPacks: ['docs/roadmap.md'],
-          model: 'claude-4-sonnet',
+          llmModel: 'claude-4-sonnet',
         },
       ];
 

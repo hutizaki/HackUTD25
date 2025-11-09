@@ -6,6 +6,7 @@ import { asyncHandler } from '../utils/asyncHandler';
 import { validateRequest } from '../middleware/validators/validateRequest';
 import * as projectService from '../services/project.service';
 import { logActivity } from '../utils/activityLog';
+import { createPipelineService, PipelineExecutionRequest } from '../services/pipeline.service';
 
 const router = Router();
 
@@ -43,6 +44,21 @@ export const updateProjectSchema = z.object({
 
 export type CreateProjectInput = z.infer<typeof createProjectSchema>;
 export type UpdateProjectInput = z.infer<typeof updateProjectSchema>;
+
+/**
+ * Pipeline execution schema
+ */
+export const executePipelineSchema = z.object({
+  prompt: z
+    .string()
+    .min(10, 'Prompt must be at least 10 characters')
+    .max(5000, 'Prompt must be less than 5000 characters')
+    .trim(),
+  repository: z.string().url('Repository must be a valid URL'),
+  ref: z.string().trim().optional(),
+});
+
+export type ExecutePipelineInput = z.infer<typeof executePipelineSchema>;
 
 /**
  * POST /api/projects
@@ -249,6 +265,146 @@ router.delete(
         res.status(404).json(createErrorResponse(ErrorMessages.NOT_FOUND));
       } else {
         res.status(400).json(createErrorResponse(ErrorMessages.VALIDATION_FAILED, errorMessage));
+      }
+    }
+  })
+);
+
+/**
+ * POST /api/projects/:id/pipeline/execute
+ * Execute pipeline for a project (PM -> DEV -> QA)
+ */
+router.post(
+  '/:id/pipeline/execute',
+  authenticate,
+  validateRequest(executePipelineSchema),
+  asyncHandler(async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    if (!req.userId) {
+      res.status(401).json(createErrorResponse(ErrorMessages.UNAUTHORIZED));
+      return;
+    }
+
+    const { id: projectId } = req.params;
+    const { prompt, repository, ref } = req.body;
+
+    try {
+      // Verify project ownership
+      await projectService.getProjectById(projectId, req.userId);
+
+      // Create pipeline service
+      const pipelineService = createPipelineService();
+
+      // Start pipeline execution
+      const pipelineRequest: PipelineExecutionRequest = {
+        projectId,
+        userId: req.userId,
+        prompt,
+        repository,
+        ref,
+      };
+
+      const result = await pipelineService.startPipeline(pipelineRequest);
+
+      // Log activity
+      await logActivity(req, 'execute_pipeline', {
+        projectId,
+        runId: result.runId,
+        repository,
+      });
+
+      res.status(200).json({
+        data: result,
+      });
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : ErrorMessages.NOT_FOUND;
+      if (errorMessage === ErrorMessages.NOT_FOUND) {
+        res.status(404).json(createErrorResponse(ErrorMessages.NOT_FOUND));
+      } else {
+        res.status(500).json(createErrorResponse(ErrorMessages.INTERNAL_SERVER_ERROR, errorMessage));
+      }
+    }
+  })
+);
+
+/**
+ * GET /api/projects/:id/pipeline/runs
+ * List pipeline runs for a project
+ */
+router.get(
+  '/:id/pipeline/runs',
+  authenticate,
+  asyncHandler(async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    if (!req.userId) {
+      res.status(401).json(createErrorResponse(ErrorMessages.UNAUTHORIZED));
+      return;
+    }
+
+    const { id: projectId } = req.params;
+    const limit = parseInt(req.query.limit as string) || 50;
+
+    try {
+      // Verify project ownership
+      await projectService.getProjectById(projectId, req.userId);
+
+      // Create pipeline service
+      const pipelineService = createPipelineService();
+
+      // Get runs
+      const runs = await pipelineService.listRuns(projectId, limit);
+
+      res.status(200).json({
+        data: runs,
+      });
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : ErrorMessages.NOT_FOUND;
+      if (errorMessage === ErrorMessages.NOT_FOUND) {
+        res.status(404).json(createErrorResponse(ErrorMessages.NOT_FOUND));
+      } else {
+        res.status(500).json(createErrorResponse(ErrorMessages.INTERNAL_SERVER_ERROR, errorMessage));
+      }
+    }
+  })
+);
+
+/**
+ * GET /api/projects/:id/pipeline/runs/:runId
+ * Get pipeline run status
+ */
+router.get(
+  '/:id/pipeline/runs/:runId',
+  authenticate,
+  asyncHandler(async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    if (!req.userId) {
+      res.status(401).json(createErrorResponse(ErrorMessages.UNAUTHORIZED));
+      return;
+    }
+
+    const { id: projectId, runId } = req.params;
+
+    try {
+      // Verify project ownership
+      await projectService.getProjectById(projectId, req.userId);
+
+      // Create pipeline service
+      const pipelineService = createPipelineService();
+
+      // Get run status
+      const run = await pipelineService.getRunStatus(runId);
+
+      if (!run) {
+        res.status(404).json(createErrorResponse(ErrorMessages.NOT_FOUND, 'Run not found'));
+        return;
+      }
+
+      res.status(200).json({
+        data: run,
+      });
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : ErrorMessages.NOT_FOUND;
+      if (errorMessage === ErrorMessages.NOT_FOUND) {
+        res.status(404).json(createErrorResponse(ErrorMessages.NOT_FOUND));
+      } else {
+        res.status(500).json(createErrorResponse(ErrorMessages.INTERNAL_SERVER_ERROR, errorMessage));
       }
     }
   })

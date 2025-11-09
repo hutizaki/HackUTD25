@@ -32,7 +32,7 @@ export interface IAgent extends Document {
   enabled: boolean;
   onboardingDocRef?: string; // Reference to onboarding document
   contextPacks?: string[]; // Context packs to include
-  model?: string; // LLM model to use (e.g., "claude-4-sonnet")
+  llmModel?: string; // LLM model to use (e.g., "claude-4-sonnet")
   created_at: Date;
   updated_at: Date;
 }
@@ -113,7 +113,7 @@ const AgentSchema = new Schema<IAgent>(
       required: false,
       default: [],
     },
-    model: {
+    llmModel: {
       type: String,
       required: false,
       trim: true,
