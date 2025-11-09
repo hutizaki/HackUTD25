@@ -1,5 +1,5 @@
 import { Router, Request, Response } from 'express';
-import { auth } from '../middleware/auth';
+import { authenticate } from '../middleware/auth';
 import { createAgentService, ExecuteAgentRequest } from '../services/agent.service';
 import { hasAnyCursorApiKey, getCursorApiKeyForAgent } from '../config/env';
 import { logger } from '../config/logger';
@@ -32,22 +32,23 @@ const executeAgentSchema = z.object({
   branchName: z.string().optional(),
   prompt: z.string().min(1),
   autoCreatePr: z.boolean().optional(),
-  contextData: z.record(z.unknown()).optional(),
+  contextData: z.record(z.string(), z.unknown()).optional(),
 });
 
 /**
  * POST /api/agents/execute
  * Execute an agent
  */
-router.post('/execute', auth, async (req: Request, res: Response): Promise<void> => {
+router.post('/execute', authenticate, async (req: Request, res: Response): Promise<void> => {
   try {
     // Validate request body
     const validationResult = executeAgentSchema.safeParse(req.body);
     if (!validationResult.success) {
+      const errors = validationResult.error.issues.map((e) => `${e.path.join('.')}: ${e.message}`).join(', ');
       res.status(400).json(
         createErrorResponse(
           ErrorMessages.VALIDATION_ERROR,
-          validationResult.error.errors.map((e) => `${e.path.join('.')}: ${e.message}`).join(', ')
+          errors
         )
       );
       return;
@@ -102,7 +103,7 @@ router.post('/execute', auth, async (req: Request, res: Response): Promise<void>
  * GET /api/agents/runs/:agentRunId
  * Get agent run status
  */
-router.get('/runs/:agentRunId', auth, async (req: Request, res: Response): Promise<void> => {
+router.get('/runs/:agentRunId', authenticate, async (req: Request, res: Response): Promise<void> => {
   try {
     const { agentRunId } = req.params;
 
@@ -149,7 +150,7 @@ router.get('/runs/:agentRunId', auth, async (req: Request, res: Response): Promi
  * POST /api/agents/runs/:agentRunId/cancel
  * Cancel agent run
  */
-router.post('/runs/:agentRunId/cancel', auth, async (req: Request, res: Response): Promise<void> => {
+router.post('/runs/:agentRunId/cancel', authenticate, async (req: Request, res: Response): Promise<void> => {
   try {
     const { agentRunId } = req.params;
 
@@ -194,7 +195,7 @@ router.post('/runs/:agentRunId/cancel', auth, async (req: Request, res: Response
  * GET /api/agents/runs/project/:projectId
  * List agent runs for a project
  */
-router.get('/runs/project/:projectId', auth, async (req: Request, res: Response): Promise<void> => {
+router.get('/runs/project/:projectId', authenticate, async (req: Request, res: Response): Promise<void> => {
   try {
     const { projectId } = req.params;
     const limit = parseInt(req.query.limit as string) || 50;
@@ -235,7 +236,7 @@ router.get('/runs/project/:projectId', auth, async (req: Request, res: Response)
  * GET /api/agents/types
  * List available agent types
  */
-router.get('/types', auth, async (_req: Request, res: Response): Promise<void> => {
+router.get('/types', authenticate, async (_req: Request, res: Response): Promise<void> => {
   try {
     const agentTypes: AgentType[] = [
       'spec-writer',

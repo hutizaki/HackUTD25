@@ -11,6 +11,7 @@ export const ErrorMessages = {
   
   // Validation errors
   VALIDATION_FAILED: 'Validation failed',
+  VALIDATION_ERROR: 'Validation error',
   PASSWORD_VALIDATION_FAILED: 'Password validation failed',
   
   // Resource errors
@@ -32,6 +33,7 @@ export const ErrorMessages = {
   
   // Server errors
   INTERNAL_SERVER_ERROR: 'Internal server error',
+  SERVICE_UNAVAILABLE: 'Service unavailable',
   
   // Success messages
   LOGOUT_SUCCESS: 'Logged out successfully',

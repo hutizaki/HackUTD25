@@ -10,6 +10,7 @@ import { Login } from './routes/Login';
 import { Dashboard } from './routes/Dashboard';
 import { Account } from './routes/Account';
 import { ProjectDetail } from './pages/ProjectDetail';
+import { PipelinePage } from './routes/PipelinePage';
 import { NotFound } from './routes/NotFound';
 
 function App() {
@@ -79,6 +80,7 @@ function App() {
                     <Route path="/dashboard" element={<Dashboard />} />
                     <Route path="/account" element={<Account />} />
                     <Route path="/projects/:id" element={<ProjectDetail />} />
+                    <Route path="/projects/:projectId/pipeline/:runId" element={<PipelinePage />} />
                     <Route path="*" element={<NotFound />} />
                   </Routes>
                 </div>

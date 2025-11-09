@@ -4,6 +4,7 @@ import { motion } from 'framer-motion';
 import { ProtectedRoute } from '@/components/ProtectedRoute';
 import { LoadingSpinner } from '@/components/common/LoadingSpinner';
 import { CreateProjectModal } from '@/components/CreateProjectModal';
+import { SmartChatBox } from '@/components/SmartChatBox';
 import { getProjects } from '@/lib/projects';
 import type { Project } from '@/types/api';
 
@@ -56,75 +57,15 @@ function DashboardContent() {
           transition={{ duration: 0.5 }}
         >
           <div className="mb-8">
-            {/* Chatbot Interface */}
-            <div className="flex flex-col items-center justify-center min-h-[200px] mb-6">
-              <div className="w-full max-w-3xl mx-auto">
-                {/* Welcome Message with Chat Icon */}
-                <div className="flex items-center gap-4 mb-6">
-                  <div className="w-12 h-12 rounded-full bg-gray-200 dark:bg-gray-700 flex items-center justify-center flex-shrink-0">
-                    <svg
-                      className="w-6 h-6 text-gray-500 dark:text-gray-400"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"
-                      />
-                    </svg>
-                  </div>
-                  <div>
-                    <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-1">
-                      What project would you like to make?
-                    </h2>
-                    <p className="text-sm text-gray-500 dark:text-gray-400">
-                      Chatbot coming soon...
-                    </p>
-                  </div>
-                </div>
-
-                {/* Disabled Input Area */}
-                <div className="relative">
-                  <div className="bg-white dark:bg-gray-800 border-2 border-gray-300 dark:border-gray-600 rounded-2xl shadow-lg p-4 opacity-50">
-                    <div className="flex items-center gap-3">
-                      <div className="flex-1">
-                        <input
-                          type="text"
-                          disabled
-                          placeholder="Message AI assistant..."
-                          className="w-full bg-transparent text-gray-500 dark:text-gray-400 placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none cursor-not-allowed"
-                        />
-                      </div>
-                      <button
-                        disabled
-                        className="p-2 bg-gray-200 dark:bg-gray-700 text-gray-400 rounded-lg cursor-not-allowed"
-                      >
-                        <svg
-                          className="w-5 h-5"
-                          fill="none"
-                          stroke="currentColor"
-                          viewBox="0 0 24 24"
-                        >
-                          <path
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            strokeWidth={2}
-                            d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"
-                          />
-                        </svg>
-                      </button>
-                    </div>
-                  </div>
-                  <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                    <span className="text-xs text-gray-400 dark:text-gray-500 bg-white dark:bg-gray-800 px-2 py-1 rounded">
-                      Coming Soon
-                    </span>
-                  </div>
-                </div>
-              </div>
+            {/* Smart Chat Interface */}
+            <div className="flex flex-col items-center justify-center mb-6">
+              <SmartChatBox
+                onProjectCreated={handleProjectCreated}
+                onPipelineStarted={(runId, projectId) => {
+                  // Navigate to project page to see the pipeline
+                  navigate(`/projects/${projectId}`);
+                }}
+              />
             </div>
 
             <div className="flex items-center gap-4 mb-6">

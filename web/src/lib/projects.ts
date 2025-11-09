@@ -52,3 +52,19 @@ export async function deleteProject(id: string): Promise<void> {
   await api.delete(`/projects/${id}`);
 }
 
+/**
+ * Start a mock pipeline for a project
+ * @param projectId - Project ID
+ * @param prompt - The prompt/description for what to build
+ * @returns Pipeline run information
+ */
+export async function startMockPipeline(
+  projectId: string,
+  prompt: string
+): Promise<{ runId: string; state: string; timeline: any[] }> {
+  const response = await api.post<
+    ApiSuccessResponse<{ runId: string; state: string; timeline: any[] }>
+  >(`/projects/${projectId}/pipeline/mock`, { prompt });
+  return response.data.data;
+}
+

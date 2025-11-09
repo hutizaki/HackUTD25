@@ -24,7 +24,11 @@ elif [ -f ".env" ]; then
 fi
 
 # Configuration
-REPOSITORY="${REPOSITORY:-https://github.com/bryan/HackUTD25}"
+# Auto-detect git repository URL (convert SSH to HTTPS format)
+GIT_REMOTE=$(git remote get-url origin 2>/dev/null | sed 's/git@github.com:/https:\/\/github.com\//' | sed 's/\.git$//')
+REPOSITORY="${REPOSITORY:-${GIT_REMOTE:-https://github.com/hutizaki/HackUTD25}}"
+# Use current git branch if not specified
+CURRENT_BRANCH=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "main")
 REF="${REF:-feature/dev-test-health}"  # Review the DEV agent's branch
 BRANCH_NAME="qa/review-health-$(date +%s)"
 PR_NUMBER="${PR_NUMBER:-1}"
@@ -33,6 +37,7 @@ PR_NUMBER="${PR_NUMBER:-1}"
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 RED='\033[0;31m'
+BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
 # Check if QA API key is provided
@@ -131,6 +136,60 @@ if echo "$RESPONSE" | jq -e '.id' > /dev/null; then
     echo "To check status again:"
     echo "  curl -u \$QA_CLOUD_AGENT_API_KEY: https://api.cursor.com/v0/agents/$AGENT_ID | jq '.'"
     echo ""
+    echo "To cancel the agent:"
+    echo "  curl -X POST -u \$QA_CLOUD_AGENT_API_KEY: https://api.cursor.com/v0/agents/$AGENT_ID/cancel"
+    echo ""
+    
+    # If agent is already running, offer to poll
+    if [ "$CURRENT_STATUS" = "RUNNING" ]; then
+        echo -e "${BLUE}ℹ️  Agent is running. This may take 5 minutes.${NC}"
+        echo ""
+        read -p "Would you like to poll for completion? (y/n) " -n 1 -r
+        echo ""
+        if [[ $REPLY =~ ^[Yy]$ ]]; then
+            echo ""
+            echo -e "${YELLOW}Polling for completion (checking every 15 seconds)...${NC}"
+            echo "Press Ctrl+C to stop polling"
+            echo ""
+            
+            POLL_COUNT=0
+            MAX_POLLS=20  # 5 minutes max
+            
+            while [ $POLL_COUNT -lt $MAX_POLLS ]; do
+                sleep 15
+                POLL_COUNT=$((POLL_COUNT + 1))
+                
+                STATUS_RESPONSE=$(curl -s --request GET \
+                  --url "https://api.cursor.com/v0/agents/${AGENT_ID}" \
+                  -u "${QA_CLOUD_AGENT_API_KEY}:")
+                
+                CURRENT_STATUS=$(echo "$STATUS_RESPONSE" | jq -r '.status')
+                echo -e "[Poll ${POLL_COUNT}/${MAX_POLLS}] Status: ${YELLOW}${CURRENT_STATUS}${NC}"
+                
+                if [ "$CURRENT_STATUS" = "COMPLETED" ]; then
+                    echo ""
+                    echo -e "${GREEN}✅ Agent completed successfully!${NC}"
+                    echo ""
+                    echo "Full response:"
+                    echo "$STATUS_RESPONSE" | jq '.'
+                    break
+                elif [ "$CURRENT_STATUS" = "FAILED" ]; then
+                    echo ""
+                    echo -e "${RED}❌ Agent failed${NC}"
+                    echo ""
+                    echo "Full response:"
+                    echo "$STATUS_RESPONSE" | jq '.'
+                    break
+                fi
+            done
+            
+            if [ $POLL_COUNT -eq $MAX_POLLS ]; then
+                echo ""
+                echo -e "${YELLOW}⚠️  Agent still running after ${MAX_POLLS} polls (5 minutes)${NC}"
+                echo "Continue monitoring at: $CURSOR_URL"
+            fi
+        fi
+    fi
     
 else
     echo ""
@@ -138,9 +197,18 @@ else
     echo "Response:"
     echo "$RESPONSE" | jq '.'
     
+    # Check for common errors
     if echo "$RESPONSE" | grep -q "Unauthorized"; then
         echo ""
         echo -e "${YELLOW}Hint: Check that your QA_CLOUD_AGENT_API_KEY is valid${NC}"
+    elif echo "$RESPONSE" | grep -q "do not have access"; then
+        echo ""
+        echo -e "${YELLOW}Hint: You need to install the Cursor GitHub App${NC}"
+        echo "Click this link to install:"
+        ERROR_URL=$(echo "$RESPONSE" | grep -o 'https://cursor.com/api/auth/connect-github[^"]*' | head -1)
+        if [ -n "$ERROR_URL" ]; then
+            echo "$ERROR_URL"
+        fi
     fi
     
     exit 1

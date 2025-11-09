@@ -41,35 +41,35 @@ export function Landing() {
           className="text-center"
         >
           <h1 className="text-5xl font-extrabold text-gray-900 dark:text-white mb-6">
-            {user ? `Welcome back, ${user.name}!` : 'AIO SaaS App'}
+            {user ? `Welcome back, ${user.name}!` : 'Watch AI Build Your App'}
           </h1>
           <p className="text-xl text-gray-600 dark:text-gray-300 mb-8 max-w-2xl mx-auto">
             {user
-              ? 'Get started with your projects and manage your AI-powered SaaS applications.'
-              : 'Build, deploy, and manage your AI-powered SaaS applications with ease. Create projects, generate code, and launch your ideas faster than ever.'}
+              ? 'See your AI agents working in real-time. Beautiful, simple, magical.'
+              : 'Experience the future of software development. Watch autonomous AI agents collaborate to build your application in real-time.'}
           </p>
           {!user && (
             <div className="mt-8 mb-8 max-w-3xl mx-auto">
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6 text-center">
                 <div className="p-4">
-                  <div className="text-3xl mb-2">🚀</div>
-                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">Quick Start</h3>
+                  <div className="text-3xl mb-2">👀</div>
+                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">Watch the Magic</h3>
                   <p className="text-sm text-gray-600 dark:text-gray-400">
-                    Create projects in minutes and start building your SaaS application
+                    See AI agents working in real-time with beautiful visualizations
                   </p>
                 </div>
                 <div className="p-4">
                   <div className="text-3xl mb-2">🤖</div>
-                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">AI-Powered</h3>
+                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">Autonomous Pipeline</h3>
                   <p className="text-sm text-gray-600 dark:text-gray-400">
-                    Leverage AI to generate code, create marketing content, and analyze insights
+                    PM, Dev, and QA agents collaborate automatically to build your app
                   </p>
                 </div>
                 <div className="p-4">
-                  <div className="text-3xl mb-2">📊</div>
-                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">All-in-One</h3>
+                  <div className="text-3xl mb-2">✨</div>
+                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">Simple & Beautiful</h3>
                   <p className="text-sm text-gray-600 dark:text-gray-400">
-                    Manage code, marketing, and analytics all from one platform
+                    Focus on what matters - watch your ideas come to life
                   </p>
                 </div>
               </div>

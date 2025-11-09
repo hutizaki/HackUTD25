@@ -1,11 +1,18 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import { motion } from 'framer-motion';
 import { ProtectedRoute } from '@/components/ProtectedRoute';
 import { LoadingSpinner } from '@/components/common/LoadingSpinner';
 import { getProject, updateProject, deleteProject } from '@/lib/projects';
+import { PipelineVisualization } from '@/components/Pipeline/PipelineVisualization';
+import { PipelineStats } from '@/components/Pipeline/PipelineStats';
+import { ActivityFeed } from '@/components/Pipeline/ActivityFeed';
+import { AgentRunDetail } from '@/components/Pipeline/AgentRunDetail';
+import { useAgentRuns } from '@/hooks/useAgentRuns';
 import type { Project, UpdateProjectInput } from '@/types/api';
+import type { AgentRun } from '@/lib/agents';
 
-type Tab = 'home' | 'code' | 'marketing' | 'analytics' | 'settings';
+type Tab = 'pipeline' | 'activity' | 'settings';
 
 function ProjectDetailContent() {
   const { id } = useParams<{ id: string }>();
@@ -13,7 +20,15 @@ function ProjectDetailContent() {
   const [project, setProject] = useState<Project | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<Tab>('home');
+  const [activeTab, setActiveTab] = useState<Tab>('pipeline');
+  const [selectedRun, setSelectedRun] = useState<AgentRun | null>(null);
+  const [isDetailOpen, setIsDetailOpen] = useState(false);
+
+  // Fetch agent runs with real-time updates
+  const { agentRuns, loading: runsLoading, refresh: refreshRuns } = useAgentRuns({
+    projectId: id || '',
+    refreshInterval: 5000, // Refresh every 5 seconds
+  });
 
   useEffect(() => {
     if (!id) {
@@ -74,287 +89,169 @@ function ProjectDetailContent() {
     );
   }
 
+  const handleSelectRun = (run: AgentRun) => {
+    setSelectedRun(run);
+    setIsDetailOpen(true);
+  };
+
   return (
-    <div className="bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-900 dark:to-gray-800 min-h-[calc(100vh-4rem)] py-12 px-4 sm:px-6 lg:px-8">
+    <div className="bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-900 dark:to-gray-800 min-h-[calc(100vh-4rem)] py-8 px-4 sm:px-6 lg:px-8">
       <div className="max-w-7xl mx-auto">
-        {/* Project Details Header */}
-        <div className="mb-6 pb-6 border-b border-gray-200 dark:border-gray-700">
-          <div className="flex justify-between items-start gap-4">
+        {/* Header */}
+        <motion.div
+          initial={{ opacity: 0, y: -20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="mb-8"
+        >
+          <div className="flex items-start justify-between gap-4 mb-4">
             <div className="flex-1">
-              {/* Project Name */}
-              <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-3">
-                {project.name}
-              </h1>
-              {/* Description */}
+              <div className="flex items-center gap-3 mb-2">
+                <button
+                  onClick={() => navigate('/dashboard')}
+                  className="text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors"
+                >
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                  </svg>
+                </button>
+                <h1 className="text-4xl font-bold text-gray-900 dark:text-white">
+                  {project.name}
+                </h1>
+              </div>
               {project.description && (
-                <p className="text-gray-600 dark:text-gray-300 text-lg">
+                <p className="text-gray-600 dark:text-gray-400 ml-9">
                   {project.description}
                 </p>
               )}
             </div>
-            <div className="flex flex-col items-end gap-3">
-              {/* Tags */}
-              {project.tags && project.tags.length > 0 && (
-                <div className="flex flex-wrap gap-2 justify-end">
-                  {project.tags.map((tag) => (
-                    <span
-                      key={tag}
-                      className="px-3 py-1 bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200 rounded-md text-sm font-medium"
-                    >
-                      {tag}
-                    </span>
-                  ))}
-                </div>
-              )}
-              {/* Last Updated */}
-              <div className="text-right">
-                <p className="text-sm text-gray-500 dark:text-gray-400">
-                  Last updated
-                </p>
-                <p className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                  {new Date(project.updated_at).toLocaleDateString('en-US', {
-                    year: 'numeric',
-                    month: 'short',
-                    day: 'numeric',
-                  })}
-                </p>
-              </div>
-            </div>
-          </div>
-        </div>
 
-        <div className="flex flex-col lg:flex-row gap-6">
-          {/* Left Sidebar */}
-          <div className="lg:w-64 flex-shrink-0">
-            <nav className="space-y-2">
-              {/* Home Tab */}
-              <button
-                onClick={() => setActiveTab('home')}
-                className={`w-full text-left px-4 py-2 rounded-md transition-colors ${
-                  activeTab === 'home'
-                    ? 'bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 font-medium'
-                    : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
-                }`}
-              >
-                Home
-              </button>
-              <button
-                disabled
-                className="w-full text-left px-4 py-2 rounded-md text-gray-400 dark:text-gray-500 cursor-not-allowed opacity-50"
-              >
-                Tasks
-              </button>
-
-              {/* Divider */}
-              <div className="border-t border-gray-200 dark:border-gray-700 my-2" />
-
-              {/* Development Tab (disabled) */}
-              <button
-                disabled
-                className="w-full text-left px-4 py-2 rounded-md text-gray-400 dark:text-gray-500 cursor-not-allowed opacity-50"
-              >
-                Development
-              </button>
-              {/* Development Subtabs */}
-              <div className="pl-6 space-y-1">
-                <button
-                  disabled
-                  className="w-full text-left px-4 py-2 rounded-md text-gray-400 dark:text-gray-500 cursor-not-allowed opacity-50 text-sm"
-                >
-                  Code
-                </button>
-                <button
-                  disabled
-                  className="w-full text-left px-4 py-2 rounded-md text-gray-400 dark:text-gray-500 cursor-not-allowed opacity-50 text-sm"
-                >
-                  Deployment
-                </button>
-                <button
-                  disabled
-                  className="w-full text-left px-4 py-2 rounded-md text-gray-400 dark:text-gray-500 cursor-not-allowed opacity-50 text-sm"
-                >
-                  Access Tokens
-                </button>
-              </div>
-              <button
-                disabled
-                className="w-full text-left px-4 py-2 rounded-md text-gray-400 dark:text-gray-500 cursor-not-allowed opacity-50"
-              >
-                Marketing and Sales
-              </button>
-              <button
-                disabled
-                className="w-full text-left px-4 py-2 rounded-md text-gray-400 dark:text-gray-500 cursor-not-allowed opacity-50"
-              >
-                Analytics and Insights
-              </button>
-
-              {/* Divider */}
-              <div className="border-t border-gray-200 dark:border-gray-700 my-2" />
-
-              {/* Settings Tab */}
-              <button
-                onClick={() => setActiveTab('settings')}
-                className={`w-full text-left px-4 py-2 rounded-md transition-colors ${
-                  activeTab === 'settings'
-                    ? 'bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 font-medium'
-                    : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
-                }`}
-              >
-                Project Settings
-              </button>
-              <button
-                disabled
-                className="w-full text-left px-4 py-2 rounded-md text-gray-400 dark:text-gray-500 cursor-not-allowed opacity-50"
-              >
-                Collaborators
-              </button>
-            </nav>
-          </div>
-
-          {/* Main Content */}
-          <div className="flex-1">
-            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6">
-              {activeTab === 'home' && <HomeTab />}
-              {activeTab === 'settings' && (
-                <SettingsTab
-                  project={project}
-                  onUpdate={(updatedProject) => setProject(updatedProject)}
-                  onDelete={() => navigate('/dashboard')}
-                />
-              )}
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// Home Tab Component
-function HomeTab() {
-  return (
-    <div className="flex flex-col h-full">
-      {/* ChatGPT-style Chat Interface */}
-      <div className="flex-1 flex flex-col items-center justify-center min-h-[400px]">
-        <div className="w-full max-w-3xl mx-auto">
-          {/* Chat Icon/Logo */}
-          <div className="flex justify-center mb-8">
-            <div className="w-16 h-16 rounded-full bg-gray-200 dark:bg-gray-700 flex items-center justify-center opacity-50">
-              <svg
-                className="w-8 h-8 text-gray-500 dark:text-gray-400"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"
-                />
-              </svg>
-            </div>
-          </div>
-
-          {/* Welcome Message */}
-          <div className="text-center mb-8">
-            <h2 className="text-2xl font-semibold text-gray-900 dark:text-white mb-2">
-              How can I help you today?
-            </h2>
-            <p className="text-gray-500 dark:text-gray-400">
-              Chatbot terminal coming soon...
-            </p>
-          </div>
-
-          {/* Example Prompts (ChatGPT-style) */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-8">
-            <button
-              disabled
-              className="p-4 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg text-left hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors opacity-50 cursor-not-allowed"
-            >
-              <p className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                Generate code
-              </p>
-              <p className="text-xs text-gray-500 dark:text-gray-400">
-                Create a new feature
-              </p>
-            </button>
-            <button
-              disabled
-              className="p-4 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg text-left hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors opacity-50 cursor-not-allowed"
-            >
-              <p className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                Analyze project
-              </p>
-              <p className="text-xs text-gray-500 dark:text-gray-400">
-                Get insights and recommendations
-              </p>
-            </button>
-            <button
-              disabled
-              className="p-4 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg text-left hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors opacity-50 cursor-not-allowed"
-            >
-              <p className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                Deploy application
-              </p>
-              <p className="text-xs text-gray-500 dark:text-gray-400">
-                Launch your project
-              </p>
-            </button>
-            <button
-              disabled
-              className="p-4 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg text-left hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors opacity-50 cursor-not-allowed"
-            >
-              <p className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                Create marketing content
-              </p>
-              <p className="text-xs text-gray-500 dark:text-gray-400">
-                Generate promotional materials
-              </p>
-            </button>
-          </div>
-
-          {/* Disabled Input Area */}
-          <div className="relative">
-            <div className="bg-white dark:bg-gray-800 border-2 border-gray-300 dark:border-gray-600 rounded-2xl shadow-lg p-4 opacity-50">
-              <div className="flex items-center gap-3">
-                <div className="flex-1">
-                  <input
-                    type="text"
-                    disabled
-                    placeholder="Message AI assistant..."
-                    className="w-full bg-transparent text-gray-500 dark:text-gray-400 placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none cursor-not-allowed"
-                  />
-                </div>
-                <button
-                  disabled
-                  className="p-2 bg-gray-200 dark:bg-gray-700 text-gray-400 rounded-lg cursor-not-allowed"
-                >
-                  <svg
-                    className="w-5 h-5"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
+            {/* Tags */}
+            {project.tags && project.tags.length > 0 && (
+              <div className="flex flex-wrap gap-2 justify-end">
+                {project.tags.map((tag) => (
+                  <span
+                    key={tag}
+                    className="px-3 py-1 bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200 rounded-full text-sm font-medium"
                   >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"
-                    />
+                    {tag}
+                  </span>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Tabs */}
+          <div className="flex gap-2 border-b border-gray-200 dark:border-gray-700">
+            <button
+              onClick={() => setActiveTab('pipeline')}
+              className={`px-6 py-3 font-medium transition-colors border-b-2 ${
+                activeTab === 'pipeline'
+                  ? 'border-blue-500 text-blue-600 dark:text-blue-400'
+                  : 'border-transparent text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
+              }`}
+            >
+              🤖 AI Pipeline
+            </button>
+            <button
+              onClick={() => setActiveTab('activity')}
+              className={`px-6 py-3 font-medium transition-colors border-b-2 ${
+                activeTab === 'activity'
+                  ? 'border-blue-500 text-blue-600 dark:text-blue-400'
+                  : 'border-transparent text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
+              }`}
+            >
+              📊 Activity Feed
+            </button>
+            <button
+              onClick={() => setActiveTab('settings')}
+              className={`px-6 py-3 font-medium transition-colors border-b-2 ${
+                activeTab === 'settings'
+                  ? 'border-blue-500 text-blue-600 dark:text-blue-400'
+                  : 'border-transparent text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
+              }`}
+            >
+              ⚙️ Settings
+            </button>
+          </div>
+        </motion.div>
+
+        {/* Content */}
+        <motion.div
+          key={activeTab}
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.3 }}
+        >
+          {activeTab === 'pipeline' && (
+            <div>
+              <div className="flex items-center justify-between mb-6">
+                <h2 className="text-2xl font-bold text-gray-900 dark:text-white">
+                  Watch the AI Magic ✨
+                </h2>
+                <button
+                  onClick={refreshRuns}
+                  disabled={runsLoading}
+                  className="px-4 py-2 bg-blue-600 dark:bg-blue-500 text-white rounded-lg hover:bg-blue-700 dark:hover:bg-blue-600 transition-colors disabled:opacity-50 flex items-center gap-2"
+                >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                   </svg>
+                  Refresh
                 </button>
               </div>
+              
+              {/* Stats */}
+              <PipelineStats agentRuns={agentRuns} />
+              
+              {/* Pipeline Visualization */}
+              <PipelineVisualization agentRuns={agentRuns} onSelectRun={handleSelectRun} />
             </div>
-            <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-              <span className="text-xs text-gray-400 dark:text-gray-500 bg-white dark:bg-gray-800 px-2 py-1 rounded">
-                Coming Soon
-              </span>
+          )}
+
+          {activeTab === 'activity' && (
+            <div>
+              <div className="flex items-center justify-between mb-6">
+                <h2 className="text-2xl font-bold text-gray-900 dark:text-white">
+                  Recent Activity
+                </h2>
+                <button
+                  onClick={refreshRuns}
+                  disabled={runsLoading}
+                  className="px-4 py-2 bg-blue-600 dark:bg-blue-500 text-white rounded-lg hover:bg-blue-700 dark:hover:bg-blue-600 transition-colors disabled:opacity-50 flex items-center gap-2"
+                >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                  </svg>
+                  Refresh
+                </button>
+              </div>
+              <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-6">
+                <ActivityFeed agentRuns={agentRuns} maxItems={20} />
+              </div>
             </div>
-          </div>
-        </div>
+          )}
+
+          {activeTab === 'settings' && (
+            <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-6">
+              <SettingsTab
+                project={project}
+                onUpdate={(updatedProject) => setProject(updatedProject)}
+                onDelete={() => navigate('/dashboard')}
+              />
+            </div>
+          )}
+        </motion.div>
       </div>
+
+      {/* Agent Run Detail Modal */}
+      <AgentRunDetail
+        run={selectedRun}
+        isOpen={isDetailOpen}
+        onClose={() => {
+          setIsDetailOpen(false);
+          setSelectedRun(null);
+        }}
+      />
     </div>
   );
 }

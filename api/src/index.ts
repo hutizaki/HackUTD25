@@ -11,6 +11,8 @@ import userRoutes from './routes/user';
 import projectRoutes from './routes/project.routes';
 import adminRoutes from './routes/admin';
 import agentRoutes from './routes/agent.routes';
+import ticketRoutes from './routes/ticket.routes';
+import ticketStatsRoutes from './routes/ticket-stats.routes';
 import { generalLimiter } from './middleware/rateLimit';
 import { configureSecurityHeaders } from './middleware/security';
 import { initCsrfSecret, csrfToken } from './middleware/csrf';
@@ -161,6 +163,8 @@ app.use('/api/auth', authRoutes);
 app.use('/api/user', userRoutes);
 app.use('/api/projects', projectRoutes);
 app.use('/api/agents', agentRoutes);
+app.use('/api', ticketRoutes);
+app.use('/api', ticketStatsRoutes);
 
 // Admin routes (development only - protected by adminAuth middleware)
 // Note: Admin routes are NOT rate-limited to allow dev tools to work freely

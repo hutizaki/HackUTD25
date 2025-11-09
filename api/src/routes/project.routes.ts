@@ -6,6 +6,9 @@ import { asyncHandler } from '../utils/asyncHandler';
 import { validateRequest } from '../middleware/validators/validateRequest';
 import * as projectService from '../services/project.service';
 import { logActivity } from '../utils/activityLog';
+import { createPipelineService, PipelineExecutionRequest } from '../services/pipeline.service';
+import { createSimplifiedPipelineService } from '../services/simplified-pipeline.service';
+import { createIntegratedPipelineService } from '../services/integrated-pipeline.service';
 
 const router = Router();
 
@@ -43,6 +46,21 @@ export const updateProjectSchema = z.object({
 
 export type CreateProjectInput = z.infer<typeof createProjectSchema>;
 export type UpdateProjectInput = z.infer<typeof updateProjectSchema>;
+
+/**
+ * Pipeline execution schema
+ */
+export const executePipelineSchema = z.object({
+  prompt: z
+    .string()
+    .min(10, 'Prompt must be at least 10 characters')
+    .max(5000, 'Prompt must be less than 5000 characters')
+    .trim(),
+  repository: z.string().url('Repository must be a valid URL'),
+  ref: z.string().trim().optional(),
+});
+
+export type ExecutePipelineInput = z.infer<typeof executePipelineSchema>;
 
 /**
  * POST /api/projects
@@ -249,6 +267,379 @@ router.delete(
         res.status(404).json(createErrorResponse(ErrorMessages.NOT_FOUND));
       } else {
         res.status(400).json(createErrorResponse(ErrorMessages.VALIDATION_FAILED, errorMessage));
+      }
+    }
+  })
+);
+
+/**
+ * POST /api/projects/:id/pipeline/execute
+ * Execute pipeline for a project (PM -> DEV -> QA)
+ */
+router.post(
+  '/:id/pipeline/execute',
+  authenticate,
+  validateRequest(executePipelineSchema),
+  asyncHandler(async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    if (!req.userId) {
+      res.status(401).json(createErrorResponse(ErrorMessages.UNAUTHORIZED));
+      return;
+    }
+
+    const { id: projectId } = req.params;
+    const { prompt, repository, ref } = req.body;
+
+    try {
+      // Verify project ownership
+      await projectService.getProjectById(projectId, req.userId);
+
+      // Create pipeline service
+      const pipelineService = createPipelineService();
+
+      // Start pipeline execution
+      const pipelineRequest: PipelineExecutionRequest = {
+        projectId,
+        userId: req.userId,
+        prompt,
+        repository,
+        ref,
+      };
+
+      const result = await pipelineService.startPipeline(pipelineRequest);
+
+      // Log activity
+      await logActivity(req, 'execute_pipeline', {
+        projectId,
+        runId: result.runId,
+        repository,
+      });
+
+      res.status(200).json({
+        data: result,
+      });
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : ErrorMessages.NOT_FOUND;
+      if (errorMessage === ErrorMessages.NOT_FOUND) {
+        res.status(404).json(createErrorResponse(ErrorMessages.NOT_FOUND));
+      } else {
+        res.status(500).json(createErrorResponse(ErrorMessages.INTERNAL_SERVER_ERROR, errorMessage));
+      }
+    }
+  })
+);
+
+/**
+ * GET /api/projects/:id/pipeline/runs
+ * List pipeline runs for a project
+ */
+router.get(
+  '/:id/pipeline/runs',
+  authenticate,
+  asyncHandler(async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    if (!req.userId) {
+      res.status(401).json(createErrorResponse(ErrorMessages.UNAUTHORIZED));
+      return;
+    }
+
+    const { id: projectId } = req.params;
+    const limit = parseInt(req.query.limit as string) || 50;
+
+    try {
+      // Verify project ownership
+      await projectService.getProjectById(projectId, req.userId);
+
+      // Create pipeline service
+      const pipelineService = createPipelineService();
+
+      // Get runs
+      const runs = await pipelineService.listRuns(projectId, limit);
+
+      res.status(200).json({
+        data: runs,
+      });
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : ErrorMessages.NOT_FOUND;
+      if (errorMessage === ErrorMessages.NOT_FOUND) {
+        res.status(404).json(createErrorResponse(ErrorMessages.NOT_FOUND));
+      } else {
+        res.status(500).json(createErrorResponse(ErrorMessages.INTERNAL_SERVER_ERROR, errorMessage));
+      }
+    }
+  })
+);
+
+/**
+ * GET /api/projects/:id/pipeline/runs/:runId
+ * Get pipeline run status
+ */
+router.get(
+  '/:id/pipeline/runs/:runId',
+  authenticate,
+  asyncHandler(async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    if (!req.userId) {
+      res.status(401).json(createErrorResponse(ErrorMessages.UNAUTHORIZED));
+      return;
+    }
+
+    const { id: projectId, runId } = req.params;
+
+    try {
+      // Verify project ownership
+      await projectService.getProjectById(projectId, req.userId);
+
+      // Create pipeline service
+      const pipelineService = createPipelineService();
+
+      // Get run status
+      const run = await pipelineService.getRunStatus(runId);
+
+      if (!run) {
+        res.status(404).json(createErrorResponse(ErrorMessages.NOT_FOUND, 'Run not found'));
+        return;
+      }
+
+      res.status(200).json({
+        data: run,
+      });
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : ErrorMessages.NOT_FOUND;
+      if (errorMessage === ErrorMessages.NOT_FOUND) {
+        res.status(404).json(createErrorResponse(ErrorMessages.NOT_FOUND));
+      } else {
+        res.status(500).json(createErrorResponse(ErrorMessages.INTERNAL_SERVER_ERROR, errorMessage));
+      }
+    }
+  })
+);
+
+/**
+ * POST /api/projects/:id/pipeline/simple
+ * Execute simplified pipeline (PM → DEV → QA with logs and tickets)
+ */
+router.post(
+  '/:id/pipeline/simple',
+  authenticate,
+  validateRequest(executePipelineSchema),
+  asyncHandler(async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    if (!req.userId) {
+      res.status(401).json(createErrorResponse(ErrorMessages.UNAUTHORIZED));
+      return;
+    }
+
+    const { id: projectId } = req.params;
+    const { prompt, repository, ref } = req.body;
+
+    try {
+      // Verify project ownership
+      await projectService.getProjectById(projectId, req.userId);
+
+      // Create simplified pipeline service
+      const simplifiedPipeline = createSimplifiedPipelineService();
+
+      // Start pipeline execution
+      const result = await simplifiedPipeline.startPipeline({
+        projectId,
+        userId: req.userId,
+        featureRequest: prompt,
+        repository,
+        ref,
+      });
+
+      // Log activity
+      await logActivity(req, 'execute_simplified_pipeline', {
+        projectId,
+        runId: result.runId,
+        repository,
+        logFile: result.logFile,
+      });
+
+      res.status(200).json({
+        data: result,
+      });
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : ErrorMessages.NOT_FOUND;
+      if (errorMessage === ErrorMessages.NOT_FOUND) {
+        res.status(404).json(createErrorResponse(ErrorMessages.NOT_FOUND));
+      } else {
+        res.status(500).json(createErrorResponse(ErrorMessages.INTERNAL_SERVER_ERROR, errorMessage));
+      }
+    }
+  })
+);
+
+/**
+ * GET /api/projects/:id/pipeline/runs/:runId/logs
+ * Get logs for a pipeline run
+ */
+router.get(
+  '/:id/pipeline/runs/:runId/logs',
+  authenticate,
+  asyncHandler(async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    if (!req.userId) {
+      res.status(401).json(createErrorResponse(ErrorMessages.UNAUTHORIZED));
+      return;
+    }
+
+    const { id: projectId, runId } = req.params;
+
+    try {
+      // Verify project ownership
+      await projectService.getProjectById(projectId, req.userId);
+
+      // Create simplified pipeline service
+      const simplifiedPipeline = createSimplifiedPipelineService();
+
+      // Read log file
+      const logs = simplifiedPipeline.readLogFile(runId);
+
+      if (!logs) {
+        res.status(404).json(createErrorResponse(ErrorMessages.NOT_FOUND, 'Log file not found'));
+        return;
+      }
+
+      res.status(200).json({
+        data: {
+          runId,
+          logs,
+          logFile: simplifiedPipeline.getLogFilePath(runId),
+        },
+      });
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : ErrorMessages.NOT_FOUND;
+      if (errorMessage === ErrorMessages.NOT_FOUND) {
+        res.status(404).json(createErrorResponse(ErrorMessages.NOT_FOUND));
+      } else {
+        res.status(500).json(createErrorResponse(ErrorMessages.INTERNAL_SERVER_ERROR, errorMessage));
+      }
+    }
+  })
+);
+
+/**
+ * POST /api/projects/:id/pipeline/integrated
+ * Execute integrated pipeline with ticket management
+ */
+router.post(
+  '/:id/pipeline/integrated',
+  authenticate,
+  asyncHandler(async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    if (!req.userId) {
+      res.status(401).json(createErrorResponse(ErrorMessages.UNAUTHORIZED));
+      return;
+    }
+
+    const { id: projectId } = req.params;
+    const { prompt, repository, ref } = req.body;
+
+    if (!prompt || !repository) {
+      res.status(400).json(
+        createErrorResponse(ErrorMessages.VALIDATION_ERROR, 'Prompt and repository are required')
+      );
+      return;
+    }
+
+    try {
+      // Verify project ownership
+      await projectService.getProjectById(projectId, req.userId);
+
+      // Create integrated pipeline service
+      const integratedPipeline = createIntegratedPipelineService();
+
+      // Start integrated pipeline
+      const run = await integratedPipeline.startIntegratedPipeline({
+        projectId,
+        userId: req.userId,
+        prompt,
+        repository,
+        ref: ref || 'main',
+      });
+
+      // Log activity
+      await logActivity(req, 'project.pipeline.integrated.start', {
+        projectId,
+        runId: run.runId,
+        repository,
+      });
+
+      res.status(200).json({
+        success: true,
+        data: {
+          runId: run.runId,
+          state: run.state,
+          timeline: run.timeline,
+        },
+      });
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : ErrorMessages.NOT_FOUND;
+      if (errorMessage === ErrorMessages.NOT_FOUND) {
+        res.status(404).json(createErrorResponse(ErrorMessages.NOT_FOUND));
+      } else {
+        res.status(500).json(createErrorResponse(ErrorMessages.INTERNAL_SERVER_ERROR, errorMessage));
+      }
+    }
+  })
+);
+
+/**
+ * POST /api/projects/:id/pipeline/mock
+ * Start a mock pipeline run (no GitHub/Cursor Cloud required)
+ * Demonstrates full PM -> DEV -> QA workflow with ticket management
+ */
+router.post(
+  '/:id/pipeline/mock',
+  authenticate,
+  asyncHandler(async (req: Request, res: Response): Promise<void> => {
+    const projectId = req.params.id;
+    const { prompt, repository, ref } = req.body;
+
+    if (!req.userId) {
+      res.status(401).json(createErrorResponse(ErrorMessages.UNAUTHORIZED));
+      return;
+    }
+
+    if (!prompt) {
+      res.status(400).json(createErrorResponse(ErrorMessages.VALIDATION_ERROR, 'Prompt is required'));
+      return;
+    }
+
+    try {
+      // Verify project ownership
+      await projectService.getProjectById(projectId, req.userId);
+
+      // Import mock pipeline service
+      const { createMockPipelineService } = await import('../services/mock-pipeline.service');
+      const mockPipeline = createMockPipelineService();
+
+      // Start mock pipeline
+      const run = await mockPipeline.startMockPipeline({
+        projectId,
+        userId: req.userId,
+        prompt,
+        repository: repository || 'mock://repository',
+        ref: ref || 'main',
+      });
+
+      // Log activity
+      await logActivity(req, 'project.pipeline.mock.start', {
+        projectId,
+        runId: run.runId,
+      });
+
+      res.status(200).json({
+        success: true,
+        data: {
+          runId: run.runId,
+          state: run.state,
+          timeline: run.timeline,
+          message: 'Mock pipeline started - watch tickets being created and processed!',
+        },
+      });
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : ErrorMessages.NOT_FOUND;
+      if (errorMessage === ErrorMessages.NOT_FOUND) {
+        res.status(404).json(createErrorResponse(ErrorMessages.NOT_FOUND));
+      } else {
+        res.status(500).json(createErrorResponse(ErrorMessages.INTERNAL_SERVER_ERROR, errorMessage));
       }
     }
   })

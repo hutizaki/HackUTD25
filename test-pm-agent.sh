@@ -140,21 +140,21 @@ if echo "$RESPONSE" | jq -e '.id' > /dev/null; then
     
     # If agent is already running, offer to poll
     if [ "$CURRENT_STATUS" = "RUNNING" ]; then
-        echo -e "${BLUE}ℹ️  Agent is running. This may take 5-30 minutes.${NC}"
+        echo -e "${BLUE}ℹ️  Agent is running. This may take 5 minutes.${NC}"
         echo ""
         read -p "Would you like to poll for completion? (y/n) " -n 1 -r
         echo ""
         if [[ $REPLY =~ ^[Yy]$ ]]; then
             echo ""
-            echo -e "${YELLOW}Polling for completion (checking every 30 seconds)...${NC}"
+            echo -e "${YELLOW}Polling for completion (checking every 15 seconds)...${NC}"
             echo "Press Ctrl+C to stop polling"
             echo ""
             
             POLL_COUNT=0
-            MAX_POLLS=40  # 20 minutes max
+            MAX_POLLS=20  # 5 minutes max
             
             while [ $POLL_COUNT -lt $MAX_POLLS ]; do
-                sleep 30
+                sleep 15
                 POLL_COUNT=$((POLL_COUNT + 1))
                 
                 STATUS_RESPONSE=$(curl -s --request GET \
@@ -183,7 +183,7 @@ if echo "$RESPONSE" | jq -e '.id' > /dev/null; then
             
             if [ $POLL_COUNT -eq $MAX_POLLS ]; then
                 echo ""
-                echo -e "${YELLOW}⚠️  Agent still running after ${MAX_POLLS} polls (20 minutes)${NC}"
+                echo -e "${YELLOW}⚠️  Agent still running after ${MAX_POLLS} polls (5 minutes)${NC}"
                 echo "Continue monitoring at: $CURSOR_URL"
             fi
         fi

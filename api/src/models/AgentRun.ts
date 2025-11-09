@@ -147,7 +147,7 @@ const AgentRunSchema = new Schema<IAgentRun>(
 // Compound indexes
 AgentRunSchema.index({ runId: 1, agentId: 1 });
 AgentRunSchema.index({ projectId: 1, status: 1 });
-AgentRunSchema.index({ cursorAgentId: 1 });
+// Note: cursorAgentId already has index: true in schema definition (line 70)
 
 /**
  * Agent run model
