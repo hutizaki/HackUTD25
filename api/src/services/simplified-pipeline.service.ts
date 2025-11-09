@@ -1,5 +1,6 @@
 import { Run, IRun, RunState } from '../models/Run';
 import { AgentRun } from '../models/AgentRun';
+import { Ticket, ITicket, TicketStatus, ITicketComment } from '../models/Ticket';
 import { createAgentService } from './agent.service';
 import { logger } from '../config/logger';
 import mongoose from 'mongoose';
@@ -118,28 +119,50 @@ FEATURE REQUEST:
 ${featureRequest}
 
 YOUR TASKS:
-1. Read the onboarding documentation (if available in the repo)
-2. Break down this feature into 3-5 concrete work tickets
-3. Create GitHub Issues for each ticket with:
+1. Read the PROJECT_MANAGER_ONBOARDING.md in Cloud_Agent_Onboarding/ folder
+2. Break down this feature into 3-5 concrete work tickets (stored as JSON in MongoDB)
+3. For each ticket, create:
    - Clear title
    - Detailed description
-   - Acceptance criteria
-   - Technical notes
-   - Priority label
+   - 3-5 acceptance criteria
+   - Technical implementation notes
+   - Priority (high/medium/low)
+   - Type (epic/story/task)
+   - Estimated hours
+   - Branch name (feature/[slug]-#[number])
+
+4. Create a branch for the overall feature set
+5. Create PM-TICKETS.json with all ticket data
+6. Create a summary document explaining the breakdown
+
+TICKET STRUCTURE (JSON):
+{
+  "title": "Implement user profile view",
+  "description": "Create component to display user profile...",
+  "type": "story",
+  "priority": "high",
+  "estimatedHours": 4,
+  "branchName": "feature/user-profile-#1",
+  "acceptanceCriteria": [
+    "User can view their profile",
+    "Profile shows avatar, name, email",
+    "Profile is responsive"
+  ],
+  "implementationNotes": "Use React component, fetch from /api/users/:id",
+  "filesAffected": ["web/src/components/Profile.tsx"]
+}
 
 IMPORTANT:
-- Create actual GitHub Issues (not just a document)
-- Use labels: "feature", "priority:high/medium/low"
-- Number the tickets (e.g., "Ticket 1/5: ...")
-- Add comments to each issue with implementation guidance
-- Reference the original feature request
+- Create branch: feature/[feature-name]-#[timestamp]
+- All child tickets branch from this main feature branch
+- Number tickets sequentially (1, 2, 3, etc.)
+- Store ticket data in PM-TICKETS.json for our system to read
 
-After creating all tickets, add a comment to each issue with:
-- Estimated complexity (small/medium/large)
-- Dependencies on other tickets
-- Technical considerations
-
-Create a summary document at docs/PM-TICKETS-SUMMARY.md listing all created tickets.`;
+After creating tickets, create PM-SUMMARY.md explaining:
+- Overall feature breakdown
+- Ticket dependencies
+- Implementation order
+- Technical approach`;
 
       this.writeLog(runId, 'PM_EXECUTE', 'Launching PM Agent', {
         prompt: pmPrompt.substring(0, 200) + '...',

@@ -8,6 +8,7 @@ import * as projectService from '../services/project.service';
 import { logActivity } from '../utils/activityLog';
 import { createPipelineService, PipelineExecutionRequest } from '../services/pipeline.service';
 import { createSimplifiedPipelineService } from '../services/simplified-pipeline.service';
+import { createTicketService } from '../services/ticket.service';
 
 const router = Router();
 
@@ -510,6 +511,85 @@ router.get(
       } else {
         res.status(500).json(createErrorResponse(ErrorMessages.INTERNAL_SERVER_ERROR, errorMessage));
       }
+    }
+  })
+);
+
+/**
+ * GET /api/projects/:id/tickets
+ * List all tickets for a project
+ */
+router.get(
+  '/:id/tickets',
+  authenticate,
+  asyncHandler(async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    if (!req.userId) {
+      res.status(401).json(createErrorResponse(ErrorMessages.UNAUTHORIZED));
+      return;
+    }
+
+    const { id: projectId } = req.params;
+    const { runId, status } = req.query;
+
+    try {
+      // Verify project ownership
+      await projectService.getProjectById(projectId, req.userId);
+
+      const ticketService = createTicketService();
+
+      let tickets;
+      if (runId && status) {
+        tickets = await ticketService.getTicketsByStatus(runId as string, status as any);
+      } else if (runId) {
+        tickets = await ticketService.listTickets(runId as string);
+      } else {
+        res.status(400).json(createErrorResponse(ErrorMessages.VALIDATION_FAILED, 'runId is required'));
+        return;
+      }
+
+      res.status(200).json({
+        data: tickets,
+      });
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : ErrorMessages.NOT_FOUND;
+      res.status(500).json(createErrorResponse(ErrorMessages.INTERNAL_SERVER_ERROR, errorMessage));
+    }
+  })
+);
+
+/**
+ * GET /api/projects/:id/tickets/:ticketNumber
+ * Get a specific ticket
+ */
+router.get(
+  '/:id/tickets/:ticketNumber',
+  authenticate,
+  asyncHandler(async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    if (!req.userId) {
+      res.status(401).json(createErrorResponse(ErrorMessages.UNAUTHORIZED));
+      return;
+    }
+
+    const { id: projectId, ticketNumber } = req.params;
+
+    try {
+      // Verify project ownership
+      await projectService.getProjectById(projectId, req.userId);
+
+      const ticketService = createTicketService();
+      const ticket = await ticketService.getTicket(projectId, parseInt(ticketNumber));
+
+      if (!ticket) {
+        res.status(404).json(createErrorResponse(ErrorMessages.NOT_FOUND, 'Ticket not found'));
+        return;
+      }
+
+      res.status(200).json({
+        data: ticket,
+      });
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : ErrorMessages.NOT_FOUND;
+      res.status(500).json(createErrorResponse(ErrorMessages.INTERNAL_SERVER_ERROR, errorMessage));
     }
   })
 );
