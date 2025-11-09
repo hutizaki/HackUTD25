@@ -7,6 +7,7 @@ import { validateRequest } from '../middleware/validators/validateRequest';
 import * as projectService from '../services/project.service';
 import { logActivity } from '../utils/activityLog';
 import { createPipelineService, PipelineExecutionRequest } from '../services/pipeline.service';
+import { createSimplifiedPipelineService } from '../services/simplified-pipeline.service';
 
 const router = Router();
 
@@ -398,6 +399,109 @@ router.get(
 
       res.status(200).json({
         data: run,
+      });
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : ErrorMessages.NOT_FOUND;
+      if (errorMessage === ErrorMessages.NOT_FOUND) {
+        res.status(404).json(createErrorResponse(ErrorMessages.NOT_FOUND));
+      } else {
+        res.status(500).json(createErrorResponse(ErrorMessages.INTERNAL_SERVER_ERROR, errorMessage));
+      }
+    }
+  })
+);
+
+/**
+ * POST /api/projects/:id/pipeline/simple
+ * Execute simplified pipeline (PM → DEV → QA with logs and tickets)
+ */
+router.post(
+  '/:id/pipeline/simple',
+  authenticate,
+  validateRequest(executePipelineSchema),
+  asyncHandler(async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    if (!req.userId) {
+      res.status(401).json(createErrorResponse(ErrorMessages.UNAUTHORIZED));
+      return;
+    }
+
+    const { id: projectId } = req.params;
+    const { prompt, repository, ref } = req.body;
+
+    try {
+      // Verify project ownership
+      await projectService.getProjectById(projectId, req.userId);
+
+      // Create simplified pipeline service
+      const simplifiedPipeline = createSimplifiedPipelineService();
+
+      // Start pipeline execution
+      const result = await simplifiedPipeline.startPipeline({
+        projectId,
+        userId: req.userId,
+        featureRequest: prompt,
+        repository,
+        ref,
+      });
+
+      // Log activity
+      await logActivity(req, 'execute_simplified_pipeline', {
+        projectId,
+        runId: result.runId,
+        repository,
+        logFile: result.logFile,
+      });
+
+      res.status(200).json({
+        data: result,
+      });
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : ErrorMessages.NOT_FOUND;
+      if (errorMessage === ErrorMessages.NOT_FOUND) {
+        res.status(404).json(createErrorResponse(ErrorMessages.NOT_FOUND));
+      } else {
+        res.status(500).json(createErrorResponse(ErrorMessages.INTERNAL_SERVER_ERROR, errorMessage));
+      }
+    }
+  })
+);
+
+/**
+ * GET /api/projects/:id/pipeline/runs/:runId/logs
+ * Get logs for a pipeline run
+ */
+router.get(
+  '/:id/pipeline/runs/:runId/logs',
+  authenticate,
+  asyncHandler(async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    if (!req.userId) {
+      res.status(401).json(createErrorResponse(ErrorMessages.UNAUTHORIZED));
+      return;
+    }
+
+    const { id: projectId, runId } = req.params;
+
+    try {
+      // Verify project ownership
+      await projectService.getProjectById(projectId, req.userId);
+
+      // Create simplified pipeline service
+      const simplifiedPipeline = createSimplifiedPipelineService();
+
+      // Read log file
+      const logs = simplifiedPipeline.readLogFile(runId);
+
+      if (!logs) {
+        res.status(404).json(createErrorResponse(ErrorMessages.NOT_FOUND, 'Log file not found'));
+        return;
+      }
+
+      res.status(200).json({
+        data: {
+          runId,
+          logs,
+          logFile: simplifiedPipeline.getLogFilePath(runId),
+        },
       });
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : ErrorMessages.NOT_FOUND;
