@@ -1,0 +1,113 @@
+name: CI
+
+on:
+  pull_request:
+    branches:
+      - main
+  push:
+    branches:
+      - main
+
+jobs:
+  build-api:
+    name: Build API
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: api/package-lock.json
+      
+      - name: Install dependencies
+        working-directory: ./api
+        run: npm ci
+      
+      - name: Run tests
+        working-directory: ./api
+        run: npm test
+        continue-on-error: true
+      
+      - name: Build application
+        working-directory: ./api
+        run: npm run build
+      
+      - name: Notify platform API
+        if: always()
+        env:
+          PLATFORM_WEBHOOK_URL: ${{ secrets.PLATFORM_WEBHOOK_URL }}
+          PLATFORM_WEBHOOK_TOKEN: ${{ secrets.PLATFORM_WEBHOOK_TOKEN }}
+        run: |
+          if [ -n "$PLATFORM_WEBHOOK_URL" ] && [ -n "$PLATFORM_WEBHOOK_TOKEN" ]; then
+            curl -X POST "$PLATFORM_WEBHOOK_URL/api/ci/webhook" \
+              -H "Content-Type: application/json" \
+              -H "Authorization: Bearer $PLATFORM_WEBHOOK_TOKEN" \
+              -d '{
+                "event": "workflow_run",
+                "workflow": "CI",
+                "job": "build-api",
+                "status": "${{ job.status }}",
+                "repository": "${{ github.repository }}",
+                "ref": "${{ github.ref }}",
+                "sha": "${{ github.sha }}",
+                "run_id": "${{ github.run_id }}",
+                "run_number": "${{ github.run_number }}"
+              }'
+          fi
+
+  build-web:
+    name: Build Web
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: web/package-lock.json
+      
+      - name: Install dependencies
+        working-directory: ./web
+        run: npm ci
+      
+      - name: Lint
+        working-directory: ./web
+        run: npm run lint
+        continue-on-error: true
+      
+      - name: Build application
+        working-directory: ./web
+        run: npm run build
+      
+      - name: Notify platform API
+        if: always()
+        env:
+          PLATFORM_WEBHOOK_URL: ${{ secrets.PLATFORM_WEBHOOK_URL }}
+          PLATFORM_WEBHOOK_TOKEN: ${{ secrets.PLATFORM_WEBHOOK_TOKEN }}
+        run: |
+          if [ -n "$PLATFORM_WEBHOOK_URL" ] && [ -n "$PLATFORM_WEBHOOK_TOKEN" ]; then
+            curl -X POST "$PLATFORM_WEBHOOK_URL/api/ci/webhook" \
+              -H "Content-Type: application/json" \
+              -H "Authorization: Bearer $PLATFORM_WEBHOOK_TOKEN" \
+              -d '{
+                "event": "workflow_run",
+                "workflow": "CI",
+                "job": "build-web",
+                "status": "${{ job.status }}",
+                "repository": "${{ github.repository }}",
+                "ref": "${{ github.ref }}",
+                "sha": "${{ github.sha }}",
+                "run_id": "${{ github.run_id }}",
+                "run_number": "${{ github.run_number }}"
+              }'
+          fi
+

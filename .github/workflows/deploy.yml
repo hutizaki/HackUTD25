@@ -1,0 +1,74 @@
+name: Deploy
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Deployment environment'
+        required: true
+        default: 'production'
+        type: choice
+        options:
+          - development
+          - staging
+          - production
+  push:
+    branches:
+      - main
+
+jobs:
+  build-docker:
+    name: Build Docker Images
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      
+      - name: Build API Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./api
+          file: ./api/Dockerfile
+          push: false
+          tags: aio-api:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+      
+      - name: Build Web Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./web
+          file: ./web/Dockerfile
+          push: false
+          tags: aio-web:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+      
+      - name: Notify platform API
+        if: always()
+        env:
+          PLATFORM_WEBHOOK_URL: ${{ secrets.PLATFORM_WEBHOOK_URL }}
+          PLATFORM_WEBHOOK_TOKEN: ${{ secrets.PLATFORM_WEBHOOK_TOKEN }}
+          DEPLOYMENT_ENV: ${{ github.event.inputs.environment || 'production' }}
+        run: |
+          if [ -n "$PLATFORM_WEBHOOK_URL" ] && [ -n "$PLATFORM_WEBHOOK_TOKEN" ]; then
+            curl -X POST "$PLATFORM_WEBHOOK_URL/api/deployments/webhook" \
+              -H "Content-Type: application/json" \
+              -H "Authorization: Bearer $PLATFORM_WEBHOOK_TOKEN" \
+              -d '{
+                "event": "deployment",
+                "workflow": "Deploy",
+                "status": "${{ job.status }}",
+                "environment": "$DEPLOYMENT_ENV",
+                "repository": "${{ github.repository }}",
+                "ref": "${{ github.ref }}",
+                "sha": "${{ github.sha }}",
+                "run_id": "${{ github.run_id }}",
+                "run_number": "${{ github.run_number }}"
+              }'
+          fi
+

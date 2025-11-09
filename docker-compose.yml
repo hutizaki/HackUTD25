@@ -1,0 +1,85 @@
+services:
+  mongodb:
+    image: mongo:7
+    container_name: aio-mongodb
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongodb_data:/data/db
+    environment:
+      - MONGO_INITDB_DATABASE=aio
+    networks:
+      - aio-network
+    restart: unless-stopped
+    healthcheck:
+      test: echo 'db.runCommand("ping").ok' | mongosh localhost:27017/test --quiet
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  api:
+    build:
+      context: ./api
+      dockerfile: Dockerfile
+    container_name: aio-api
+    ports:
+      - "8080:8080"
+    env_file:
+      - ./api/.env
+    environment:
+      - NODE_ENV=development
+      - PORT=8080
+      - CORS_ORIGIN=http://localhost:5174
+      - MONGO_URL=${MONGO_URL:-mongodb://mongodb:27017/aio}
+      - JWT_SECRET=${JWT_SECRET:-aio_saas_platform_jwt_token_key_2025_hackathon_secure_random_string_min_32_chars}
+      - JWT_EXPIRES_IN=7d
+      - COOKIE_NAME=aio_session
+      - COOKIE_DOMAIN=localhost
+      - PM_CLOUD_AGENT_API_KEY=${PM_CLOUD_AGENT_API_KEY:-}
+      - DEV_CLOUD_AGENT_API_KEY=${DEV_CLOUD_AGENT_API_KEY:-}
+      - QA_CLOUD_AGENT_API_KEY=${QA_CLOUD_AGENT_API_KEY:-}
+      - GITHUB_CLIENT_ID=${GITHUB_CLIENT_ID:-}
+      - GITHUB_CLIENT_SECRET=${GITHUB_CLIENT_SECRET:-}
+      - GITHUB_WEBHOOK_SECRET=${GITHUB_WEBHOOK_SECRET:-}
+      - PLATFORM_WEBHOOK_TOKEN=${PLATFORM_WEBHOOK_TOKEN:-}
+    depends_on:
+      mongodb:
+        condition: service_healthy
+    networks:
+      - aio-network
+    restart: unless-stopped
+    volumes:
+      - ./api:/app
+      - /app/node_modules
+    command: npm run dev
+
+  web:
+    build:
+      context: ./web
+      dockerfile: Dockerfile
+    container_name: aio-web
+    ports:
+      - "5174:5173"
+    env_file:
+      - ./web/.env
+    environment:
+      - NODE_ENV=development
+      - VITE_API_BASE_URL=${VITE_API_BASE_URL:-http://localhost:8080/api}
+    depends_on:
+      - api
+    networks:
+      - aio-network
+    restart: unless-stopped
+    volumes:
+      - ./web:/app
+      - /app/node_modules
+    command: npm run dev -- --host 0.0.0.0
+
+volumes:
+  mongodb_data:
+    driver: local
+
+networks:
+  aio-network:
+    driver: bridge
+
